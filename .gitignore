@@ -1,0 +1,16 @@
+node_modules/
+dist/
+*.mnaddon
+.DS_Store
+src/web-dist/
+
+# Local configuration and credentials
+node_modules/
+.env
+.env.*
+!.env.example
+*.local
+secrets/
+*.pem
+*.key
+.DS_Store
