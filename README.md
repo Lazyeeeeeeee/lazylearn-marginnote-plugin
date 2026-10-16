@@ -85,7 +85,7 @@ PLIST
 
 - `npm run smoke` 不需要真机：`scripts/smoke-card-draft.mjs` 跑纯函数，`scripts/smoke-bridge.mjs` 在 Node 的 `vm` 里塞假的原生对象（`Application` / `Database` / `NSUserDefaults` / `MNNetwork`）跑桥命令表。
 - `npm run check` 是打包闸门：`main.js` 里 `JSB.require` 的文件必须在包里、网页面板 `call` 的桥命令必须在 `src/WebBridgeCommands.js` 的命令表里、`mnaddon.json` 与 `package.json` 版本一致、`web-dist` 的 JS/CSS 都在。这几样错了都是**装到 MarginNote 上才炸**，所以在本地与 CI 都拦一遍。
-- CI 里由 `.github/workflows/ci.yml` 的 `Test MarginNote plugin` job 跑三条（smoke / build:web / check），闸门是 `apps/marginnote-plugin/` 下有改动（`scripts/ci-changes.sh` 的 `mn`）；发版那台还会多打一个真包（release.yml）。
+- CI 在本仓库的每次 main 推送、Pull Request 和 v* 标签推送时运行冒烟、完整构建与包装检查；版本标签通过检查后自动发布 .mnaddon 安装包。
 
 ## 已知边界
 

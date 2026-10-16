@@ -72,7 +72,7 @@ const pkg = JSON.parse(read("package.json"));
 assert.equal(
   addon.version,
   pkg.version,
-  "src/mnaddon.json 与 package.json 版本不一致（跑 node scripts/version.mjs 盖章）",
+  "src/mnaddon.json 与 package.json 版本不一致（使用本仓库 scripts/bump-version.js 同步版本）",
 );
 
 assert.ok(
