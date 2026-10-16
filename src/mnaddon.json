@@ -2,7 +2,7 @@
   "addonid": "cn.lazylearn.marginnote",
   "author": "LazyLearn",
   "title": "懒学 LazyLearn",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "marginnote_version_min": "4.2.3",
   "cert_key": ""
 }
