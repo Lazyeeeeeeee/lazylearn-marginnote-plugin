@@ -2,6 +2,8 @@
 
 两个方向：在 MarginNote 里读 PDF 时，把选中的摘录直接做成懒学闪卡、问助教、找题、把整本笔记本导成懒学笔记；反过来也能把懒学上的卡写回当前笔记本的脑图。
 
+中文社区发布与反馈：[懒学 LazyLearn 插件发布帖](https://bbs.marginnote.com.cn/t/topic/68666)。首发文案保存在 [docs/community-post.md](docs/community-post.md)。
+
 ## 能力（第一期）
 
 | 入口 | 做什么 | 依赖的懒学接口 |
