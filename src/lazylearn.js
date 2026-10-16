@@ -1,5 +1,5 @@
 // lazylearn.js —— 懒学 API 客户端。跑在插件的 JavaScriptCore 里（没有 fetch），
-// 一律经 MNNetwork 发请求；会话 token 存在 NSUserDefaults，不进网页存储。
+// 一律经 LazyLearnNetwork 发请求；会话 token 存在 NSUserDefaults，不进网页存储。
 var LazyLearnApi = (function () {
   var DEFAULT_BASE_URL = "https://lazylearn.cn";
   var KEY_BASE_URL = "lazylearn_base_url";
@@ -88,7 +88,7 @@ var LazyLearnApi = (function () {
     }
 
     try {
-      return await MNNetwork.fetch(baseUrl() + path, {
+      return await LazyLearnNetwork.fetch(baseUrl() + path, {
         method: opts.method || "GET",
         headers: headers,
         json: opts.json,

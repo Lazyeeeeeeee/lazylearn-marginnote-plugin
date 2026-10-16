@@ -1,6 +1,7 @@
-// network.js —— Response + MNNetwork，取自 MarginNote 官方插件文档《网络请求》。
+// network.js —— 原生网络封装，显式导出插件专属全局，供 JSB.require 后的脚本使用。
 // Response#text() 依赖 base64.js（入口已先 JSB.require("base64")）。
 
+var LazyLearnNetwork = (function () {
 class Response {
   constructor(data, nsResponse) {
     this.data = data;
@@ -90,3 +91,6 @@ class MNNetwork {
     });
   }
 }
+
+return MNNetwork;
+})();

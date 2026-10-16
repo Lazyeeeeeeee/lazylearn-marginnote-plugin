@@ -29,9 +29,9 @@
 ```bash
 npm install
 npm run dev     # Vite 热更新 + 打包到 src/web-dist（真机连开发机时用）
-npm run build      # 产出 lazylearn-marginnote-plugin-v1.0.5.mnaddon
+npm run build      # 产出 lazylearn-marginnote-plugin-v1.0.6.mnaddon
 npm run build:web  # 只打前端到 src/web-dist（CI 走这条，不依赖 zip）
-npm run smoke      # 10 秒冒烟：卡片草稿纯函数 + 假原生对象跑一遍桥命令表
+npm run smoke      # 10 秒冒烟：原生网络封装 + 卡片草稿 + 桥命令表
 npm run check      # 包装完整性 + 桥契约（require 的文件、网页调的命令、版本、前端产物）
 ```
 
@@ -85,7 +85,7 @@ PLIST
 
 ## 自动化
 
-- `npm run smoke` 不需要真机：`scripts/smoke-card-draft.mjs` 跑纯函数，`scripts/smoke-bridge.mjs` 在 Node 的 `vm` 里塞假的原生对象（`Application` / `Database` / `NSUserDefaults` / `MNNetwork`）跑桥命令表。
+- `npm run smoke` 不需要真机：`scripts/smoke-network.mjs` 验证源码与压缩代码的网络全局导出及模拟原生登录；`scripts/smoke-card-draft.mjs` 跑纯函数，`scripts/smoke-bridge.mjs` 在 Node 的 `vm` 里塞假的原生对象（`Application` / `Database` / `NSUserDefaults` / `LazyLearnNetwork`）跑桥命令表。
 - `npm run check` 是打包闸门：`main.js` 里 `JSB.require` 的文件必须在包里、网页面板 `call` 的桥命令必须在 `src/WebBridgeCommands.js` 的命令表里、`mnaddon.json` 与 `package.json` 版本一致、`web-dist` 的 JS/CSS 都在。这几样错了都是**装到 MarginNote 上才炸**，所以在本地与 CI 都拦一遍。
 - CI 在本仓库的每次 main 推送、Pull Request 和 v* 标签推送时运行冒烟、完整构建与包装检查；版本标签通过检查后自动发布 .mnaddon 安装包。
 

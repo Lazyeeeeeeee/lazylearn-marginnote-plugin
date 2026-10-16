@@ -175,7 +175,7 @@ const context = vm.createContext({
   },
   NSOperationQueue: { mainQueue: () => ({ name: "main" }) },
   NSURLConnection: {
-    // 上传那条路不走 MNNetwork：直接把拼好的 multipart body 抓下来验。
+    // 上传那条路不走 LazyLearnNetwork：直接把拼好的 multipart body 抓下来验。
     sendAsynchronousRequestQueueCompletionHandler: (request, queue, handler) => {
       uploads.push(request);
       handler(
@@ -191,7 +191,7 @@ const context = vm.createContext({
         ? { objectKey: "chat/u1/abc.png", url: "https://cdn.lazylearn.cn/chat/u1/abc.png", contentType: "image/png", filename: "marginnote.png" }
         : null,
   },
-  MNNetwork: {
+  LazyLearnNetwork: {
     fetch: async (url, options) => {
       requests.push({ url, options });
       const body = options.json ? JSON.parse(JSON.stringify(options.json)) : {};
