@@ -4,9 +4,13 @@
 
 所以我做了「懒学 LazyLearn」插件，把 MarginNote 和懒学学习平台连接起来：**在 MarginNote 里读、记、选，在懒学里制卡、练习、复习，再把需要的卡片取回脑图。**
 
-这是首次在社区发布的测试版，当前版本 **v1.0.6**。需要联网并登录懒学账号，平台地址：[lazylearn.cn](https://lazylearn.cn)。
+这是首次在社区发布的测试版，当前版本 **v1.0.7**。需要联网并登录懒学账号，平台地址：[lazylearn.cn](https://lazylearn.cn)。
 
 > **安装前请先看：目前尚未取得 MarginNote 官方签名。** 部分 macOS 版本会拦截未认证插件，可能无法直接安装；iPad 端尚未完成真机验证。请先在测试笔记本中试用，重要笔记建议提前备份。
+
+## v1.0.7 更新（2026-10-20）
+
+修复 Node.js 24 在 Windows 上无法直接启动 Vite、Terser 等本地命令的问题，并改为通过 PowerShell/.NET 生成安装包 ZIP。网络客户端继续显式导出为插件专属全局，避免与 MarginNote 共享环境里的同名对象冲突。
 
 ## v1.0.6 更新（2026-10-16）
 
@@ -52,7 +56,7 @@ AI 生成的内容需要自己核对，尤其是公式、专业术语和答案�
 
 ## 三步开始使用
 
-1. [直接下载 v1.0.6 安装包](https://github.com/Lazyeeeeeeee/lazylearn-marginnote-plugin/releases/download/v1.0.6/lazylearn-marginnote-plugin-v1.0.6.mnaddon)，或到 [GitHub Releases](https://github.com/Lazyeeeeeeee/lazylearn-marginnote-plugin/releases/latest) 获取最新版本。
+1. [直接下载 v1.0.7 安装包](https://github.com/Lazyeeeeeeee/lazylearn-marginnote-plugin/releases/download/v1.0.7/lazylearn-marginnote-plugin-v1.0.7.mnaddon)，或到 [GitHub Releases](https://github.com/Lazyeeeeeeee/lazylearn-marginnote-plugin/releases/latest) 获取最新版本。
 2. 在 MarginNote 4 中打开并导入插件。插件声明的最低版本为 **4.2.3**；目前已在 **macOS · MarginNote 4.4.6** 上完成部分功能实测。若被提示「无法加载未经认证的插件」，说明当前版本的签名限制尚未解决，请先不要把它用于正式笔记流程。
 3. 打开插件设置，登录懒学账号；在测试笔记本里选一张文字笔记，先试「摘录制卡」，再到懒学确认卡片是否保存成功。
 

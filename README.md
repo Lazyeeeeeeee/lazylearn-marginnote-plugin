@@ -29,7 +29,7 @@
 ```bash
 npm install
 npm run dev     # Vite 热更新 + 打包到 src/web-dist（真机连开发机时用）
-npm run build      # 产出 lazylearn-marginnote-plugin-v1.0.6.mnaddon
+npm run build      # 产出 lazylearn-marginnote-plugin-v1.0.7.mnaddon
 npm run build:web  # 只打前端到 src/web-dist（CI 走这条，不依赖 zip）
 npm run smoke      # 10 秒冒烟：原生网络封装 + 卡片草稿 + 桥命令表
 npm run check      # 包装完整性 + 桥契约（require 的文件、网页调的命令、版本、前端产物）

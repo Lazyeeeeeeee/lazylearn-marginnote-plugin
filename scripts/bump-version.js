@@ -54,9 +54,12 @@ function main() {
   const rootDir = path.join(__dirname, "..");
   const pkgPath = path.join(rootDir, "package.json");
   const addonPath = path.join(rootDir, "src", "mnaddon.json");
+  const lockPath = path.join(rootDir, "package-lock.json");
 
   const pkg = readJson(pkgPath);
   const addon = readJson(addonPath);
+  const lockExists = fs.existsSync(lockPath);
+  const lock = lockExists ? readJson(lockPath) : null;
 
   let inGitRepo = false;
   try {
@@ -88,9 +91,16 @@ function main() {
 
   pkg.version = next;
   addon.version = next;
+  if (lock) {
+    lock.version = next;
+    if (lock.packages && lock.packages[""]) {
+      lock.packages[""].version = next;
+    }
+  }
 
   writeJson(pkgPath, pkg);
   writeJson(addonPath, addon);
+  if (lock) writeJson(lockPath, lock);
 
   const tagName = `v${next}`;
 
@@ -100,7 +110,10 @@ function main() {
     return;
   }
 
-  execSync(`git add "${pkgPath}" "${addonPath}"`, { stdio: "inherit" });
+  const managedPaths = [pkgPath, addonPath];
+  if (lock) managedPaths.push(lockPath);
+  const quotedPaths = managedPaths.map((filePath) => `"${filePath}"`).join(" ");
+  execSync(`git add ${quotedPaths}`, { stdio: "inherit" });
   execSync(`git commit -m "${tagName}"`, { stdio: "inherit" });
   execSync(`git tag "${tagName}"`, { stdio: "inherit" });
 
