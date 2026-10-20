@@ -1,7 +1,8 @@
 const fs = require("fs");
 const path = require("path");
-const { execFileSync, execSync } = require("child_process");
+const { execFileSync } = require("child_process");
 const CleanCSS = require("clean-css");
+const { resolvePackageBin } = require("./package-bin");
 
 function copyRecursiveSync(src, dest) {
   if (fs.statSync(src).isDirectory()) {
@@ -26,15 +27,9 @@ function getAllFiles(dir, files = []) {
   return files;
 }
 
-function getLocalBin(rootDir, name) {
-  const binDir = path.join(rootDir, "node_modules", ".bin");
-  const ext = process.platform === "win32" ? ".cmd" : "";
-  return path.join(binDir, `${name}${ext}`);
-}
-
-function runLocalBin(rootDir, name, args) {
-  const binPath = getLocalBin(rootDir, name);
-  execFileSync(binPath, args, { stdio: "ignore" });
+function runPackageBin(rootDir, packageName, binName, args) {
+  const binPath = resolvePackageBin(rootDir, packageName, binName);
+  execFileSync(process.execPath, [binPath, ...args], { stdio: "ignore" });
 }
 
 function minifyCssFile(filePath) {
@@ -52,7 +47,7 @@ function minifyFiles(distDir) {
   const rootDir = path.join(__dirname, "..");
   const jsFiles = getAllFiles(distDir).filter((f) => f.endsWith(".js"));
   jsFiles.forEach((file) => {
-    runLocalBin(rootDir, "terser", [
+    runPackageBin(rootDir, "terser", "terser", [
       file,
       "-o",
       file,
@@ -63,7 +58,7 @@ function minifyFiles(distDir) {
 
   const htmlFiles = getAllFiles(distDir).filter((f) => f.endsWith(".html"));
   htmlFiles.forEach((file) => {
-    runLocalBin(rootDir, "html-minifier-terser", [
+    runPackageBin(rootDir, "html-minifier-terser", "html-minifier-terser", [
       file,
       "-o",
       file,
@@ -79,6 +74,36 @@ function minifyFiles(distDir) {
   const cssFiles = getAllFiles(distDir).filter((f) => f.endsWith(".css"));
   cssFiles.forEach((file) => {
     minifyCssFile(file);
+  });
+}
+
+function archiveDist(distDir, outputPath) {
+  if (process.platform === "win32") {
+    execFileSync(
+      "powershell.exe",
+      [
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "Add-Type -AssemblyName System.IO.Compression.FileSystem; " +
+          "[System.IO.Compression.ZipFile]::CreateFromDirectory($env:LAZYLEARN_ZIP_SOURCE, " +
+          "$env:LAZYLEARN_ZIP_DEST, [System.IO.Compression.CompressionLevel]::Optimal, $false)",
+      ],
+      {
+        env: {
+          ...process.env,
+          LAZYLEARN_ZIP_SOURCE: distDir,
+          LAZYLEARN_ZIP_DEST: outputPath,
+        },
+        stdio: "inherit",
+      },
+    );
+    return;
+  }
+
+  execFileSync("zip", ["-r", "-q", outputPath, "."], {
+    cwd: distDir,
+    stdio: "inherit",
   });
 }
 
@@ -123,8 +148,7 @@ function build() {
     fs.unlinkSync(outputPath);
   }
 
-  const absOutputPath = path.resolve(outputPath);
-  execSync(`cd "${distDir}" && zip -r -q "${absOutputPath}" .`);
+  archiveDist(distDir, path.resolve(outputPath));
   console.log(`Build successful: ${outputName}`);
 }
 

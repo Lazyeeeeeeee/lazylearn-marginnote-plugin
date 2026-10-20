@@ -1,11 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { spawn } = require("child_process");
-
-function getLocalBin(rootDir, name) {
-  const ext = process.platform === "win32" ? ".cmd" : "";
-  return path.join(rootDir, "node_modules", ".bin", `${name}${ext}`);
-}
+const { resolvePackageBin } = require("./package-bin");
 
 function readDevServerFunctionName(filePath) {
   const content = fs.readFileSync(filePath, "utf8");
@@ -31,7 +27,7 @@ function main() {
   const host = process.env.MN_WEB_DEV_HOST || "127.0.0.1";
   const port = String(process.env.MN_WEB_DEV_PORT || "5173");
   const devServerURL = process.env.MN_WEB_DEV_URL || `http://${host}:${port}`;
-  const viteBin = getLocalBin(rootDir, "vite");
+  const viteBin = resolvePackageBin(rootDir, "vite");
   const viteConfigPath = path.join(rootDir, "web", "vite.config.js");
   const devConfigPath = path.join(rootDir, "src", "WebDevServerConfig.js");
   const fnName = readDevServerFunctionName(devConfigPath);
@@ -40,8 +36,8 @@ function main() {
   console.log(`Web dev server URL injected: ${devServerURL}`);
 
   const child = spawn(
-    viteBin,
-    ["dev", "--host", host, "--port", port, "--strictPort", "--config", viteConfigPath],
+    process.execPath,
+    [viteBin, "dev", "--host", host, "--port", port, "--strictPort", "--config", viteConfigPath],
     {
       cwd: rootDir,
       stdio: "inherit",

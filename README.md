@@ -24,7 +24,7 @@
 
 ## 开发
 
-构建打包使用 Node.js 24、npm 11 与 zip（macOS / Linux，或直接使用 GitHub Actions）。
+构建打包使用 Node.js 24、npm 11。Windows 由 PowerShell/.NET 生成 ZIP，macOS / Linux 使用 `zip`，也可以直接走 GitHub Actions。
 
 ```bash
 npm install

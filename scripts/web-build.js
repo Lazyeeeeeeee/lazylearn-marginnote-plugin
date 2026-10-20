@@ -1,11 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const { execFileSync } = require("child_process");
-
-function getLocalBin(rootDir, name) {
-  const ext = process.platform === "win32" ? ".cmd" : "";
-  return path.join(rootDir, "node_modules", ".bin", `${name}${ext}`);
-}
+const { resolvePackageBin } = require("./package-bin");
 
 function resolveSingleBundle(distAssetsDirPath) {
   const jsFiles = fs.readdirSync(distAssetsDirPath)
@@ -25,13 +21,13 @@ function main() {
   const distDirPath = path.join(rootDir, "src", "web-dist");
   const distAssetsDirPath = path.join(distDirPath, "assets");
   const distIndexPath = path.join(rootDir, "src", "web-dist", "index.html");
-  const viteBin = getLocalBin(rootDir, "vite");
+  const viteBin = resolvePackageBin(rootDir, "vite");
   const distCssPath = path.join(distAssetsDirPath, "app.css");
 
   fs.rmSync(distDirPath, { recursive: true, force: true });
   fs.mkdirSync(distAssetsDirPath, { recursive: true });
 
-  execFileSync(viteBin, ["build", "--config", viteConfigPath], {
+  execFileSync(process.execPath, [viteBin, "build", "--config", viteConfigPath], {
     cwd: rootDir,
     stdio: "inherit",
   });
