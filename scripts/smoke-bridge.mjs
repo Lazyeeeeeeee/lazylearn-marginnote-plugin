@@ -23,6 +23,8 @@ const uploads = [];
 const createdNotes = [];
 const undoLabels = [];
 const refreshedTopics = [];
+const practiceGroupCalls = [];
+const batchCalls = [];
 let conversationSeq = 0;
 
 class FakeData {
@@ -205,13 +207,60 @@ const context = vm.createContext({
           items: [
             { id: "card-1", front: "死锁的必要条件", back: "互斥、请求与保持、不可剥夺、循环等待" },
             { id: "card-2", front: "缺页中断", back: "要访问的页不在内存" },
+            { id: "card-3", front: "内存碎片", back: "空闲块太小，无法满足分配请求" },
           ],
-          total: 2,
-          inDeck: 2,
+          total: 3,
+          inDeck: 3,
         });
       }
       if (url.includes("/api/search/questions")) {
         return stubJson(200, { source: "text", items: [{ id: "q1", stem: "死锁的必要条件", kind: "choice", seq: 3 }] });
+      }
+      if (url.endsWith("/api/me/preferences")) {
+        return stubJson(200, {
+          enabledSubjects: ["cs408", "math", "english"],
+          weakTopics: ["旧列表"],
+          weakTopicsBySubject: {
+            cs408: ["进程与线程", "内存管理"],
+            math: ["极限"],
+            english: [],
+            other: ["自定义章节"],
+          },
+          mathCategory: "math2",
+          englishTrack: "english1",
+        });
+      }
+      if (url.endsWith("/api/taxonomy")) {
+        const nodes = {
+          cs408: [
+            { id: "cs408-process", name: "进程与线程", level: 1, subject: "cs408" },
+            { id: "cs408-memory", name: "内存管理", level: 1, subject: "cs408" },
+            { id: "cs408-deadlock", name: "死锁", level: 2, subject: "cs408" },
+          ],
+          math: [{ id: "math-limit", name: "极限", level: 1, subject: "math" }],
+          english: [{ id: "english:reading", name: "阅读", level: 1, subject: "english" }],
+          other: [{ id: "other-ch1", name: "自定义章节", level: 1, subject: "other" }],
+        };
+        return stubJson(200, nodes[options.search?.subject] || []);
+      }
+      if (url.endsWith("/api/questions/practice-group")) {
+        practiceGroupCalls.push(body);
+        if (body.subject === "other" && body.chapterIds.length) {
+          return stubJson(200, { questionIds: [], sessionId: body.requestId });
+        }
+        if (body.subject === "other") {
+          return stubJson(200, { questionIds: ["q3"], sessionId: body.requestId });
+        }
+        return stubJson(200, { questionIds: ["q2", "q1"], sessionId: body.requestId });
+      }
+      if (url.endsWith("/api/questions/batch")) {
+        batchCalls.push(body);
+        const pool = [
+          { id: "q1", stem: "死锁的必要条件", kind: "single_choice", seq: 3, options: [{ key: "A" }, { key: "B" }] },
+          { id: "q2", stem: "缺页中断", kind: "solve", seq: 4, options: [] },
+          { id: "q3", stem: "文件系统的空闲块", kind: "multiple_choice", seq: 5, options: [{ key: "A" }] },
+        ];
+        return stubJson(200, { items: pool.filter((item) => body.ids.includes(item.id)) });
       }
       if (url.includes("/messages") && url.includes("/api/conversations/")) return stubText(200, sseAnswer);
       if (url.endsWith("/api/conversations")) {
@@ -257,18 +306,73 @@ assert.equal(requests.find((item) => item.url.endsWith("/api/auth/me")).options.
 const saved = await commands.createCard(bridgeContext, {
   front: "死锁的必要条件",
   back: "互斥、请求保持、不剥夺、循环等待",
+  subject: "cs408",
   externalId: "marginnote:note:note-1",
 });
 assert.equal(saved.card.id, "concept-1");
 assert.equal(saved.cardUrl, "https://lazylearn.cn/study/recite");
 const cardCall = requests.find((item) => item.url.endsWith("/api/recite/cards"));
 assert.equal(cardCall.options.method, "POST");
+assert.equal(cardCall.options.json.subject, "cs408", "新版建卡必须带明确学科");
 assert.equal(cardCall.options.json.externalId, "marginnote:note:note-1");
 
 // ---------- 找题 ----------
 const found = await commands.searchQuestions(bridgeContext, { q: "死锁", limit: 5 });
 assert.equal(found.items[0].id, "q1");
 assert.equal(found.items[0].url, "https://lazylearn.cn/study/practice");
+
+// ---------- 偏好 / 个性化题组 ----------
+const prefs = await commands.getPreferences();
+assert.deepEqual([...prefs.enabledSubjects], ["cs408", "math", "english"]);
+assert.equal(prefs.mathCategory, "math2");
+assert.equal(prefs.englishTrack, "english1");
+assert.deepEqual([...prefs.weakTopicsBySubject.cs408], ["进程与线程", "内存管理"]);
+
+const group = await commands.practiceGroup(bridgeContext, { subject: "cs408", limit: 6 });
+const firstGroupCall = practiceGroupCalls[0];
+assert.equal(firstGroupCall.subject, "cs408");
+assert.equal(firstGroupCall.examScope, undefined, "408 不带卷别");
+assert.deepEqual([...firstGroupCall.chapterIds], ["cs408-process", "cs408-memory"]);
+assert.equal(firstGroupCall.limit, 6);
+assert.match(firstGroupCall.requestId, /^mn-/);
+assert.equal(group.sessionId, firstGroupCall.requestId);
+assert.equal(group.weakTopics, 2);
+assert.equal(group.weakChapters, 2);
+assert.equal(group.fallback, false);
+assert.deepEqual([...group.items.map((item) => item.id)], ["q2", "q1"], "题面要按选题顺序返回");
+assert.equal(group.items[0].optionCount, 0);
+assert.equal(group.items[1].optionCount, 2);
+assert.equal(group.url, "https://lazylearn.cn/study/practice");
+assert.deepEqual([...batchCalls[0].ids], ["q2", "q1"]);
+
+const mathGroup = await commands.practiceGroup(bridgeContext, { subject: "math", limit: 6 });
+const mathCall = practiceGroupCalls[1];
+assert.equal(mathCall.examScope, "math2");
+assert.deepEqual([...mathCall.chapterIds], ["math-limit"]);
+assert.notEqual(mathCall.requestId, firstGroupCall.requestId, "成功后换一组要用新的 requestId");
+assert.equal(mathGroup.items.length, 2);
+
+const englishGroup = await commands.practiceGroup(bridgeContext, { subject: "english", limit: 1 });
+const englishCall = practiceGroupCalls[2];
+assert.equal(englishCall.examScope, "english1");
+assert.deepEqual([...englishCall.chapterIds], []);
+assert.equal(englishCall.limit, 1, "英语按整篇取，一篇就是一组");
+assert.equal(englishGroup.items.length, 2);
+
+// 薄弱点章节里没题时退回整科，不能让面板空着。
+const fallbackGroup = await commands.practiceGroup(bridgeContext, { subject: "other", limit: 6 });
+const otherCalls = practiceGroupCalls.filter((item) => item.subject === "other");
+assert.equal(otherCalls.length, 2);
+assert.deepEqual([...otherCalls[0].chapterIds], ["other-ch1"]);
+assert.deepEqual([...otherCalls[1].chapterIds], []);
+assert.equal(fallbackGroup.fallback, true);
+assert.equal(fallbackGroup.weakChapters, 1);
+assert.deepEqual([...fallbackGroup.items.map((item) => item.id)], ["q3"]);
+
+await assert.rejects(
+  () => commands.practiceGroup(bridgeContext, { subject: "unknown" }),
+  /先选一个学科/,
+);
 
 // ---------- 助教：SSE 解析 ----------
 const failureFrame = context.LazyLearnTutor.parseAnswer('event: error\ndata: {"detail":"额度用完了"}\n\n');
@@ -323,28 +427,38 @@ await assert.rejects(
 );
 
 // ---------- 从懒学取回卡（懒学 → 脑图） ----------
-const pullPreview = await commands.previewPullCards(bridgeContext, { scope: "deck", limit: 20 });
+// 新版清单接口返回整份候选，不再按 limit 截断；「一次取几张」由插件本地兑现。
+const pullPreview = await commands.previewPullCards(bridgeContext, { scope: "deck", limit: 2 });
 assert.equal(pullPreview.available, true);
-assert.equal(pullPreview.total, 2);
-assert.equal(pullPreview.pending, 2);
+assert.equal(pullPreview.total, 3);
+assert.equal(pullPreview.pending, 3);
+assert.equal(pullPreview.batch, 2);
 assert.deepEqual([...pullPreview.titles], ["死锁的必要条件", "缺页中断"]);
 assert.equal(createdNotes.length, 0, "只看不写");
 
-const pulled = await commands.pullCards(bridgeContext, { scope: "deck" });
-assert.equal(pulled.created, 2);
-assert.equal(createdNotes.length, 2);
+const pulled = await commands.pullCards(bridgeContext, { scope: "deck", limit: 1 });
+assert.equal(pulled.created, 1, "一次最多取一张");
+assert.equal(pulled.pending, 2, "剩下的留到下一批");
+assert.equal(createdNotes.length, 1);
 assert.equal(createdNotes[0].title, "死锁的必要条件");
 assert.equal(createdNotes[0].topicId, "nb-1");
 assert.match(createdNotes[0].comments[0], /循环等待/, "背面要写成评论");
-assert.equal(createdNotes[1].title, "缺页中断");
 assert.ok(undoLabels.some((item) => item.label === "从懒学取回卡片"), "整批要能一次撤销");
 assert.ok(refreshedTopics.includes("nb-1"), "写完要刷新脑图");
 assert.match(String(preferences.get("lazylearn_imported_nb-1")), /card-1/);
+assert.doesNotMatch(String(preferences.get("lazylearn_imported_nb-1")), /card-2/, "没取的卡不记账");
+
+const pulledRest = await commands.pullCards(bridgeContext, { scope: "deck", limit: 20 });
+assert.equal(pulledRest.created, 2);
+assert.equal(pulledRest.pending, 0);
+assert.equal(createdNotes.length, 3);
+assert.equal(createdNotes[1].title, "缺页中断");
+assert.equal(createdNotes[2].title, "内存碎片");
 
 const replay = await commands.pullCards(bridgeContext, { scope: "deck" });
 assert.equal(replay.created, 0, "取过的卡不该再来一遍");
-assert.equal(replay.skipped, 2);
-assert.equal(createdNotes.length, 2);
+assert.equal(replay.skipped, 3);
+assert.equal(createdNotes.length, 3);
 
 const pullScope = requests.filter((item) => item.url.endsWith("/api/recite/cards") && (item.options.method || "GET") === "GET").pop();
 assert.equal(pullScope.options.search.scope, "deck");

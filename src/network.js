@@ -48,7 +48,11 @@ class MNNetwork {
     var headers = {
       "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 15_0 like Mac OS X)",
       "Content-Type": "application/json",
-      "Accept": "application/json"
+      "Accept": "application/json",
+      // 新版懒学的登录会话按端分桶（web / mp / app / ios / android / mcp）。
+      // 插件不打招呼会按 web 记账，和浏览器共用两个名额，互相把对方踢下线；
+      // 这里认领通用的 app 桶，登录后各端各留自己的会话。
+      "X-Client": "app"
     };
     if (options.headers) {
       for (var k in options.headers) headers[k] = options.headers[k];

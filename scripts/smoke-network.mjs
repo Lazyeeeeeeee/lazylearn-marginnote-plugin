@@ -56,6 +56,7 @@ for (const compressed of [false, true]) {
   assert.equal(requests[0].timeout, 15);
   assert.equal(JSON.parse(requests[0].body).username, "smoke-user");
   assert.equal(requests[0].headers.Authorization, undefined);
+  assert.equal(requests[0].headers["X-Client"], "app", "登录要认领 app 会话桶，别和网页互踢");
   assert.equal(requests[1].headers.Authorization, "Bearer smoke-token");
   assert.equal(context.MNNetwork, existingNetwork, "不能覆盖其他插件的网络对象");
   assert.equal(context.Response, existingResponse, "响应类不能泄漏到共享全局");

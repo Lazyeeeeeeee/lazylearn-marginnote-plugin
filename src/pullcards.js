@@ -52,6 +52,8 @@ var LazyLearnPull = (function () {
   async function fetchCards(options) {
     if (!LazyLearnApi.session().loggedIn) throw new Error("先登录懒学账号");
     var opts = options || {};
+    // 新版清单接口一次返回整份候选（不再接 limit），所以「一次取几张」在本地截断，
+    // 不能把整本队列都写成脑图卡片。
     var data = await LazyLearnApi.listCards({
       scope: normalizeScope(opts.scope),
       limit: normalizeLimit(opts.limit),
@@ -84,28 +86,40 @@ var LazyLearnPull = (function () {
     var items = await fetchCards(options);
     var imported = readImported(notebookId);
     var split = splitNew(items, imported);
+    var batch = normalizeLimit(options && options.limit);
     return {
       available: true,
       reason: "",
       notebookId: notebookId,
       total: items.length,
       pending: split.fresh.length,
+      batch: batch,
       skipped: split.skipped,
-      titles: split.fresh.slice(0, 20).map(function (item) {
+      titles: split.fresh.slice(0, Math.min(20, batch)).map(function (item) {
         return String(item.front || "").slice(0, 60);
       }),
     };
   }
 
   async function pull(addon, options) {
+    var opts = options || {};
     var notebookId = notebookIdOf(addon);
     if (!notebookId) throw new Error("请先打开一个笔记本");
 
     var items = await fetchCards(options);
     var imported = readImported(notebookId);
     var split = splitNew(items, imported);
-    if (!split.fresh.length) {
-      return { notebookId: notebookId, total: items.length, created: 0, skipped: split.skipped, failed: 0, titles: [] };
+    var wanted = split.fresh.slice(0, normalizeLimit(opts.limit));
+    if (!wanted.length) {
+      return {
+        notebookId: notebookId,
+        total: items.length,
+        created: 0,
+        skipped: split.skipped,
+        failed: 0,
+        pending: 0,
+        titles: [],
+      };
     }
 
     var database = Database.sharedInstance();
@@ -113,7 +127,7 @@ var LazyLearnPull = (function () {
     var failed = 0;
 
     UndoManager.sharedInstance().undoGrouping("从懒学取回卡片", notebookId, function () {
-      split.fresh.forEach(function (item) {
+      wanted.forEach(function (item) {
         try {
           var note = database.createNoteWithTitleTopicid(String(item.front || "").slice(0, 200), notebookId);
           if (!note) {
@@ -139,6 +153,7 @@ var LazyLearnPull = (function () {
       created: created.length,
       skipped: split.skipped,
       failed: failed,
+      pending: split.fresh.length - created.length,
       titles: created.slice(0, 20),
     };
   }
