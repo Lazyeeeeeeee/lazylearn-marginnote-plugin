@@ -90,6 +90,174 @@ var __MN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
     });
   }
 
+  // 个性化题组：同一次 requestId 在服务端只记一次，条件不变就重放同一组。
+  // 选题和取题面是两步，任一步失败都保留 id，重试时不会多算一组。
+  var practiceRequest = null;
+
+  function stringList(value) {
+    if (Object.prototype.toString.call(value) !== "[object Array]") return [];
+    var items = [];
+    value.forEach(function (item) {
+      var text = String(item === null || item === undefined ? "" : item).trim();
+      if (text) items.push(text);
+    });
+    return items;
+  }
+
+  function normalizeTopicName(name) {
+    return String(name || "").trim().replace(/\s+/g, "");
+  }
+
+  function shallowest(nodes) {
+    var copy = nodes.slice();
+    copy.sort(function (left, right) {
+      return Number(left.level || 0) - Number(right.level || 0);
+    });
+    return copy[0] || null;
+  }
+
+  // 与懒学网页端的匹配规则一致：先精确、再去空白，命中多个时取层级最浅的那个。
+  function matchTaxonomy(name, nodes) {
+    var trimmed = String(name || "").trim();
+    if (!trimmed) return null;
+    var exact = nodes.filter(function (node) {
+      return String((node && node.name) || "").trim() === trimmed;
+    });
+    if (exact.length) return shallowest(exact);
+    var normalized = normalizeTopicName(trimmed);
+    var fuzzy = nodes.filter(function (node) {
+      return normalizeTopicName(node && node.name) === normalized;
+    });
+    return fuzzy.length ? shallowest(fuzzy) : null;
+  }
+
+  // 新账号按学科取；老账号只有平铺列表时回退到旧列表（与网页端 weakTopicsFor 一致）。
+  function weakTopicNames(prefs, subject) {
+    var bySubject = prefs && prefs.weakTopicsBySubject;
+    if (bySubject && Object.prototype.hasOwnProperty.call(bySubject, subject)) {
+      return stringList(bySubject[subject]);
+    }
+    return stringList(prefs && prefs.weakTopics);
+  }
+
+  function examScopeFor(prefs, subject) {
+    if (subject === "math") return prefs && prefs.mathCategory ? String(prefs.mathCategory) : "";
+    if (subject === "english") return prefs && prefs.englishTrack ? String(prefs.englishTrack) : "";
+    return "";
+  }
+
+  function practiceRequestId() {
+    return "mn-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+  }
+
+  function groupConditions(subject, examScope, chapterIds, limit) {
+    return {
+      subject: subject,
+      examScope: examScope || null,
+      chapterIds: chapterIds,
+      limit: limit,
+    };
+  }
+
+  async function requestPracticeGroup(conditions) {
+    var key = JSON.stringify(conditions);
+    if (!practiceRequest || practiceRequest.key !== key) {
+      practiceRequest = { key: key, requestId: practiceRequestId() };
+    }
+    return await LazyLearnApi.createPracticeGroup({
+      requestId: practiceRequest.requestId,
+      subject: conditions.subject,
+      examScope: conditions.examScope,
+      chapterIds: conditions.chapterIds,
+      limit: conditions.limit,
+    });
+  }
+
+  function getPreferences() {
+    return LazyLearnApi.preferences().then(function (prefs) {
+      return {
+        enabledSubjects: stringList(prefs && prefs.enabledSubjects),
+        weakTopics: stringList(prefs && prefs.weakTopics),
+        weakTopicsBySubject: (prefs && prefs.weakTopicsBySubject) || {},
+        mathCategory: prefs && prefs.mathCategory ? String(prefs.mathCategory) : "",
+        englishTrack: prefs && prefs.englishTrack ? String(prefs.englishTrack) : "",
+      };
+    });
+  }
+
+  async function practiceGroup(context, payload) {
+    var body = payload || {};
+    var subject = String(body.subject || "").trim();
+    if (["math", "cs408", "english", "politics", "other"].indexOf(subject) === -1) {
+      throw new Error("先选一个学科");
+    }
+    if (!LazyLearnApi.session().loggedIn) throw new Error("先登录懒学账号");
+
+    var limit = Number(body.limit) > 0 ? Math.min(Math.floor(Number(body.limit)), 50) : 6;
+    var prefs = null;
+    try {
+      prefs = await LazyLearnApi.preferences();
+    } catch (error) {
+      // 偏好读不到不该挡住换题：按整科、默认卷别继续，面板会把薄弱点数量显示为 0。
+      prefs = null;
+    }
+
+    var examScope = examScopeFor(prefs, subject);
+    var weakNames = weakTopicNames(prefs, subject);
+    var chapterIds = [];
+    if (weakNames.length) {
+      try {
+        var nodes = await LazyLearnApi.taxonomy(subject, examScope);
+        var list = Object.prototype.toString.call(nodes) === "[object Array]" ? nodes : [];
+        var seen = {};
+        weakNames.forEach(function (name) {
+          var hit = matchTaxonomy(name, list);
+          if (hit && hit.id && !seen[hit.id]) {
+            seen[hit.id] = true;
+            chapterIds.push(String(hit.id));
+          }
+        });
+      } catch (error) {
+        chapterIds = [];
+      }
+    }
+    chapterIds = chapterIds.slice(0, 50);
+
+    var weakChapters = chapterIds.length;
+    var fallback = false;
+    var group = await requestPracticeGroup(groupConditions(subject, examScope, chapterIds, limit));
+    var ids = ((group && group.questionIds) || []).map(String);
+    if (!ids.length && chapterIds.length) {
+      // 薄弱点章节里暂时没有题：退回整科再取一次，别让面板空着。
+      fallback = true;
+      group = await requestPracticeGroup(groupConditions(subject, examScope, [], limit));
+      ids = ((group && group.questionIds) || []).map(String);
+    }
+
+    var items = ids.length ? await LazyLearnApi.batchQuestions(ids) : [];
+    // 选题与题面都拿到了，这次练习请求才算完成；下次「换一组」用新的 requestId。
+    practiceRequest = null;
+    var url = LazyLearnApi.practiceUrl();
+    return {
+      subject: subject,
+      sessionId: group && group.sessionId ? String(group.sessionId) : "",
+      weakTopics: weakNames.length,
+      weakChapters: weakChapters,
+      fallback: fallback,
+      requested: ids.length,
+      items: items.map(function (item) {
+        return {
+          id: item.id,
+          stem: item.stem,
+          kind: item.kind,
+          seq: item.seq,
+          optionCount: (item.options || []).length,
+        };
+      }),
+      url: url,
+    };
+  }
+
   // 服务端的「制卡」模式（cardsRequest）会把做好的卡直接写进闪卡队列，插件这边不用解析卡面，
   // 只把回答原文摆给用户看。一次材料一趟会话：制卡会把会话切到那个模式，别污染助教的追问流。
   async function makeCards(context, payload) {
@@ -201,6 +369,8 @@ var __MN_WEB_BRIDGE_COMMANDS_GLOBAL__ = (function () {
     me: me,
     createCard: createCard,
     searchQuestions: searchQuestions,
+    getPreferences: getPreferences,
+    practiceGroup: practiceGroup,
     makeCards: makeCards,
     askTutor: askTutor,
     resetTutor: resetTutor,

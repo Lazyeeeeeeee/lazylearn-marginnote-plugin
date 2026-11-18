@@ -202,6 +202,67 @@ var LazyLearnApi = (function () {
     });
   }
 
+  // 账号偏好：个性化题组要读 enabledSubjects / weakTopicsBySubject / 卷别。
+  async function preferences() {
+    if (!token()) {
+      throw new Error("先登录懒学账号");
+    }
+    return await request("/api/me/preferences");
+  }
+
+  // 知识点树：偏好里的薄弱点是考点名（「极限」），题组接口要的是 taxonomyId，需要这张表来对。
+  async function taxonomy(subject, examScope) {
+    var search = { subject: String(subject || "") };
+    if (examScope) search.examScope = String(examScope);
+    return await request("/api/taxonomy", { search: search });
+  }
+
+  // 新版个性化题组：服务端按账号的练习历史选题，返回题号；题面另走 batch。
+  async function createPracticeGroup(group) {
+    if (!token()) {
+      throw new Error("先登录懒学账号");
+    }
+    var body = {
+      requestId: String(group.requestId || ""),
+      subject: String(group.subject || ""),
+      chapterIds: group.chapterIds || [],
+      limit: Number(group.limit) > 0 ? Math.min(Math.floor(Number(group.limit)), 50) : 6,
+    };
+    if (group.examScope) body.examScope = String(group.examScope);
+    return await request("/api/questions/practice-group", { method: "POST", json: body });
+  }
+
+  // 批量题面：单次最多 100 个 id；按请求顺序返回，服务端返回顺序不作数。
+  async function batchQuestions(ids) {
+    if (!token()) {
+      throw new Error("先登录懒学账号");
+    }
+    var unique = [];
+    var seen = {};
+    (ids || []).forEach(function (id) {
+      var key = String(id || "").trim();
+      if (!key || seen[key]) return;
+      seen[key] = true;
+      unique.push(key);
+    });
+
+    var cards = {};
+    for (var offset = 0; offset < unique.length; offset += 100) {
+      var page = await request("/api/questions/batch", {
+        method: "POST",
+        json: { ids: unique.slice(offset, offset + 100) },
+      });
+      ((page && page.items) || []).forEach(function (item) {
+        if (item && item.id) cards[String(item.id)] = item;
+      });
+    }
+    var ordered = [];
+    unique.forEach(function (id) {
+      if (cards[id]) ordered.push(cards[id]);
+    });
+    return ordered;
+  }
+
   async function createConversation(title) {
     var body = { title: String(title || "MarginNote 随手问").slice(0, 60) };
     var conversation = await request("/api/conversations", { method: "POST", json: body });
@@ -356,6 +417,10 @@ var LazyLearnApi = (function () {
     createCard: createCard,
     listCards: listCards,
     searchQuestions: searchQuestions,
+    preferences: preferences,
+    taxonomy: taxonomy,
+    createPracticeGroup: createPracticeGroup,
+    batchQuestions: batchQuestions,
     createConversation: createConversation,
     askTutor: askTutor,
     uploadNoteImage: uploadNoteImage,

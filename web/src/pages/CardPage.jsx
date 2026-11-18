@@ -5,13 +5,18 @@ import { draftCard, externalIdFor, MAX_BACK_CHARS, MAX_FRONT_CHARS } from "../li
 import { usePanelShow } from "../lib/usePanelShow";
 
 const SUBJECTS = [
-  { id: "", label: "按懒学当前学科" },
   { id: "cs408", label: "专业课 408" },
   { id: "math", label: "数学" },
   { id: "english", label: "英语" },
   { id: "politics", label: "政治" },
   { id: "other", label: "其他专业课" },
 ];
+
+// 新版懒学不再按账号的「当前学科」推断建卡学科：没带 subject 的新卡会被 422 拒绝。
+// 所以这里必须让用户明确选一个学科；已存在的同源卡更新时服务端会忽略这个字段。
+const CARD_SUBJECTS = new Set(SUBJECTS.map((item) => item.id));
+// 服务端 make_cards 只挂给这两科；数学 / 英语 / 政治传 cardsRequest 会落回普通讲题。
+const CARD_MAKING_SUBJECTS = new Set(["cs408", "other"]);
 
 export default function CardPage() {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -95,14 +100,18 @@ export default function CardPage() {
     readSelection();
   }, [readSelection, refreshSession]);
 
-  // 服务端的制卡模式只认 math / cs408 / english / other；「其他专业课」与 408 才真出卡，
-  // 数学与英语会落回讲题。没选学科就交给服务端按当前学科兜底。
-  const knownSubject = ["math", "cs408", "english", "other"].includes(subject) ? subject : undefined;
+  // 制卡模式只在 408 / 其他专业课真出卡；数学、英语、政治会落回讲题。
+  // 没选学科时会话是跨科的，服务端不会进制卡模式。
+  const knownSubject = CARD_MAKING_SUBJECTS.has(subject) ? subject : undefined;
 
   async function handleMakeCards() {
     const excerpt = selection?.excerpt?.trim();
     if (!excerpt) {
       setError("先在 PDF 里选中这段材料，再让懒懒出卡");
+      return;
+    }
+    if (!knownSubject) {
+      setError("AI 出卡只在 408 / 其他专业课可用，先在学科里选一个");
       return;
     }
     setCardsBusy(true);
@@ -129,13 +138,17 @@ export default function CardPage() {
       setError("正面和背面都要写");
       return;
     }
+    if (!CARD_SUBJECTS.has(subject)) {
+      setError("新版懒学要求先选学科，再保存这张卡");
+      return;
+    }
     setBusy(true);
     setError("");
     try {
       const result = await createCard({
         front,
         back,
-        subject: subject || undefined,
+        subject,
         externalId: selection ? externalIdFor(selection) : undefined,
       });
       setSaved({ card: result?.card, url: result?.cardUrl });
@@ -191,8 +204,11 @@ export default function CardPage() {
       </label>
 
       <label className="field">
-        <span>学科</span>
+        <span>学科（必选）</span>
         <select value={subject} onChange={(event) => setSubject(event.target.value)}>
+          <option value="" disabled>
+            选择这张卡属于哪一科
+          </option>
           {SUBJECTS.map((item) => (
             <option key={item.id} value={item.id}>
               {item.label}
@@ -200,9 +216,14 @@ export default function CardPage() {
           ))}
         </select>
       </label>
+      <p className="hint">新版懒学不再按账号的当前学科推断，新卡必须明确学科；重复发送同一张笔记更新已有卡时不受影响。</p>
 
       <div className="row">
-        <button type="button" onClick={handleSave} disabled={busy || !front.trim() || !back.trim()}>
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={busy || !front.trim() || !back.trim() || !CARD_SUBJECTS.has(subject)}
+        >
           {busy ? "正在保存…" : "加入懒学复习"}
         </button>
         <span className="hint">重复发送同一张笔记会更新同一张卡</span>
@@ -216,11 +237,13 @@ export default function CardPage() {
           type="button"
           className="ghost"
           onClick={handleMakeCards}
-          disabled={cardsBusy || !selection?.excerpt?.trim()}
+          disabled={cardsBusy || !selection?.excerpt?.trim() || !knownSubject}
         >
           {cardsBusy ? "懒懒正在出卡…" : "按这段材料出卡（最多 8 张）"}
         </button>
-        <span className="hint">走平台额度或你在懒学网页端配的 Key；408 / 其他专业课才会真出卡，数学与英语落回讲题</span>
+        <span className="hint">
+          AI 出卡只在 408 / 其他专业课可用，先在学科里选好；走平台额度或你在懒学网页端配的 Key
+        </span>
       </div>
       {cardsAnswer ? (
         <>

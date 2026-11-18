@@ -22,6 +22,8 @@ export const logout = () => call("logout");
 export const me = () => call("me");
 export const createCard = (card) => call("createCard", card);
 export const searchQuestions = (q, limit = 10) => call("searchQuestions", { q, limit });
+export const getPreferences = () => call("getPreferences");
+export const practiceGroup = (options = {}) => call("practiceGroup", options);
 export const makeCards = (options = {}) => call("makeCards", options);
 export const askTutor = (prompt, options = {}) => call("askTutor", { prompt, ...options });
 export const resetTutor = () => call("resetTutor");

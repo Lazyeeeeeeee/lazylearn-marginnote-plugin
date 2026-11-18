@@ -9,14 +9,25 @@
 | 入口 | 做什么 | 依赖的懒学接口 |
 | :--- | :--- | :--- |
 | **摘录制卡** | 读当前选区 / 焦点笔记 → 生成问答卡草稿 → 改完存进懒学闪卡队列 | `POST /api/recite/cards` |
-| **AI 出卡** | 选中一段材料让懒懒直接做成记忆卡（服务端制卡模式，做好的卡直接进队列，插件只摆回答原文） | `POST /api/conversations/{id}/messages`（`cardsRequest`） |
+| **AI 出卡** | 选中一段材料让懒懒直接做成记忆卡（服务端制卡模式，仅 408 / 其他专业课；做好的卡直接进队列，插件只摆回答原文） | `POST /api/conversations/{id}/messages`（`cardsRequest`） |
 | **助教** | 三个常用动作（讲清楚这段 / 总结考点 / 出一道检验题）+ 接着追问，好用的回答一键存进懒学笔记；可以顺手把这张笔记里的手写/图片一起发过去 | `POST /api/conversations`、`POST /api/conversations/{id}/messages`（SSE）、`POST /api/media?scope=chat`、`POST /api/notes` |
 | **考点找题** | 用选区或手输的关键词搜懒学题库，返回题干与题目链接 | `GET /api/search/questions` |
+| **按薄弱点换题** | 按当前学科、卷别与账号里的薄弱考点，从练习历史里挑一组没怎么练过的题（默认 6 题，英语按整篇）；只列题干，去懒学作答 | `GET /api/me/preferences`、`GET /api/taxonomy`、`POST /api/questions/practice-group`、`POST /api/questions/batch` |
 | **专题导入** | 把当前笔记本的脑图层级（标题 + 摘录 + 文字评论）导成懒学笔记：整本一篇，或每个根节点一篇；先预览再导 | `POST /api/notes` |
 | **取回卡片**（反向） | 把懒学上的卡写进当前笔记本：正面当卡片标题、背面当一条评论，整批可 Cmd+Z 一次撤回；取过的卡不会重复取 | `GET /api/recite/cards` + `Database.createNoteWithTitleTopicid` |
 | **设置** | 登录懒学账号、改接口地址 | `POST /api/auth/login`、`GET /api/auth/me` |
 
 同一张 MarginNote 笔记重复发送会更新同一张卡：插件用 `noteId` 生成 `externalId`（没有笔记 ID 时退化成内容指纹），后端按「用户 + externalId」命中已有卡。反方向的去重记在插件自己的 `NSUserDefaults` 里（按笔记本分开），因为懒学那张卡有稳定 id。
+
+## 与懒学当前版本的兼容
+
+新版懒学不再从账号偏好推断新建闪卡的学科：`POST /api/recite/cards` 不带 `subject` 的新卡会回 422。插件因此把「学科」改成必选项；同一张笔记命中已有 `externalId` 时，服务端只更新卡面，学科不受影响。
+
+闪卡清单接口一次返回整份候选、不再按 `limit` 截断，所以「一次最多取几张」改由插件本地兑现，不会把整个队列一次写成脑图卡片。登录请求带 `X-Client: app`，与网页端分桶记会话，不再互相顶掉。
+
+新版懒学的个性化题组（`POST /api/questions/practice-group`）按账号的练习历史、考频与难度选题。插件在「考点找题」页加了「按薄弱点换题」：读取账号的 `weakTopicsBySubject`（考点名），用 `GET /api/taxonomy` 对齐成章节 id，再连同数学卷别 / 英语轨道一起交给服务端；题面用 `POST /api/questions/batch` 批量取。匹配到薄弱点章节时只从这些章节抽；这些章节暂时没题时自动退回整科再取一次。
+
+这一版只做了离线冒烟与打包检查，尚未在 MarginNote 真机上复测；升级后建议先在测试笔记本里试一次建卡、AI 出卡、取回卡片和按薄弱点换题。
 
 ## 下载
 
@@ -29,7 +40,7 @@
 ```bash
 npm install
 npm run dev     # Vite 热更新 + 打包到 src/web-dist（真机连开发机时用）
-npm run build      # 产出 lazylearn-marginnote-plugin-v1.0.7.mnaddon
+npm run build      # 产出 lazylearn-marginnote-plugin-v1.0.8.mnaddon
 npm run build:web  # 只打前端到 src/web-dist（CI 走这条，不依赖 zip）
 npm run smoke      # 10 秒冒烟：原生网络封装 + 卡片草稿 + 桥命令表
 npm run check      # 包装完整性 + 桥契约（require 的文件、网页调的命令、版本、前端产物）

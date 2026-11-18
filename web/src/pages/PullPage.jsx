@@ -96,7 +96,9 @@ export default function PullPage() {
 
       <div className="row">
         <button type="button" onClick={handlePull} disabled={busy || !preview?.available || !preview?.pending}>
-          {busy ? "正在写进脑图…" : "取回到当前笔记本"}
+          {busy
+            ? "正在写进脑图…"
+            : `取回 ${Math.min(preview?.pending || 0, preview?.batch || limit)} 张到当前笔记本`}
         </button>
         <button type="button" className="ghost" onClick={load}>
           重新看一下
@@ -104,6 +106,7 @@ export default function PullPage() {
         {preview?.available ? (
           <span className="hint">
             懒学上有 {preview.total} 张，这张笔记本还差 {preview.pending} 张
+            （本次最多取 {preview.batch || limit} 张）
             {preview.skipped ? `（已取过 ${preview.skipped} 张）` : ""}
           </span>
         ) : null}
@@ -123,7 +126,8 @@ export default function PullPage() {
       {done ? (
         <p className="ok">
           已写进脑图 {done.created} 张{done.skipped ? `，跳过已取过的 ${done.skipped} 张` : ""}
-          {done.failed ? `，失败 ${done.failed} 张` : ""}。
+          {done.failed ? `，失败 ${done.failed} 张` : ""}
+          {done.pending ? `，还有 ${done.pending} 张没取` : ""}。
         </p>
       ) : null}
     </section>
